@@ -339,39 +339,47 @@ function TodoApp({ user }) {
   const [saving,setSaving] = useState(false);
 
   // Load from Firestore on mount
-  useEffect(()=>{
-    (async()=>{
-      const data = await loadUserData(user.uid);
-      const rr=data.recurring||[];
-      const ww=data.weekly||{};
-      const mm=data.monthly||{};
-      const yy=data.yearly||{};
-      const hh=data.history||{};
-      const dd=(data.dailyDrafts||{})[todayKey()]||[];
-      setRecurring(rr);setWeekly(ww);setMonthly(mm);setYearly(yy);
-      setHistory(hh);setDailyExtra(dd);
-      setTasks(buildDailyTasks(rr,ww,mm,yy,dd));
-      setLoaded(true);
-    })();
-  },[user.uid]);
+useEffect(()=>{
+  (async()=>{
+    const data = await loadUserData(user.uid);
+    const rr=data.recurring||[];
+    const ww=data.weekly||{};
+    const mm=data.monthly||{};
+    const yy=data.yearly||{};
+    const hh=data.history||{};
+    const todayDraft=(data.dailyDrafts||{})[todayKey()]||{};
+    const dd=todayDraft.extra||[];
+    const doneLookup=todayDraft.doneLookup||{};
 
-  // Save to Firestore when data changes (debounced)
-  useEffect(()=>{
-    if(!loaded) return;
-    setSaving(true);
-    const snap=tasks.map(t=>({text:t.text,done:t.done,source:t.source,time:t.time||""}));
-    const newH={...history,[todayKey()]:snap};
-    setHistory(newH);
-    const timer=setTimeout(async()=>{
-      await saveUserData(user.uid,{
-        recurring, weekly, monthly, yearly,
-        history: newH,
-        dailyDrafts:{[todayKey()]:dailyExtra},
-      });
-      setSaving(false);
-    },800);
-    return ()=>clearTimeout(timer);
-  },[tasks,dailyExtra,loaded]);
+    setRecurring(rr);setWeekly(ww);setMonthly(mm);setYearly(yy);
+    setHistory(hh);setDailyExtra(dd);
+
+    const built=buildDailyTasks(rr,ww,mm,yy,dd);
+    const restored=built.map(t=>({...t, done: doneLookup[t.id]===true}));
+    setTasks(restored);
+    setLoaded(true);
+  })();
+},[user.uid]);
+
+// Save to Firestore when data changes (debounced)
+useEffect(()=>{
+  if(!loaded) return;
+  setSaving(true);
+  const doneLookup={};
+  tasks.forEach(t=>{ if(t.done) doneLookup[t.id]=true; });
+  const snap=tasks.map(t=>({text:t.text,done:t.done,source:t.source,time:t.time||""}));
+  const newH={...history,[todayKey()]:snap};
+  setHistory(newH);
+  const timer=setTimeout(async()=>{
+    await saveUserData(user.uid,{
+      recurring, weekly, monthly, yearly,
+      history: newH,
+      dailyDrafts:{[todayKey()]:{extra:dailyExtra, doneLookup}},
+    });
+    setSaving(false);
+  },800);
+  return ()=>clearTimeout(timer);
+},[tasks,dailyExtra,loaded]);
 
   function rebuild(rr,ww,mm,yy,dd,cur){
     const built=buildDailyTasks(rr,ww,mm,yy,dd);
