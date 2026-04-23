@@ -324,6 +324,121 @@ function CalendarHistory({ history }) {
   );
 }
 
+// ─── Notes Tab ───────────────────────────────────────────────
+function NotesTab({ uid }) {
+  const [notes, setNotes] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [viewing, setViewing] = useState(null);
+
+  useEffect(()=>{
+    (async()=>{
+      const data = await loadUserData(uid);
+      setNotes(data.notes||[]);
+      setLoaded(true);
+    })();
+  },[uid]);
+
+  async function saveNotes(updated) {
+    setNotes(updated);
+    await saveUserData(uid, { notes: updated });
+  }
+
+  function handleAdd() {
+    if (!title.trim()) return;
+    const note = { id:uid(), title:title.trim(), body:body.trim(), createdAt: new Date().toISOString() };
+    saveNotes([note, ...notes]);
+    setTitle(""); setBody(""); setShowForm(false);
+  }
+
+  function handleDelete(id) {
+    saveNotes(notes.filter(n=>n.id!==id));
+    if (viewing?.id===id) setViewing(null);
+  }
+
+  function formatDate(iso) {
+    const d = new Date(iso);
+    return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  }
+
+  if (!loaded) return <div style={{fontSize:13,color:"#94a3b8",padding:"20px 0"}}>Loading notes...</div>;
+
+  if (viewing) return (
+    <div>
+      <button onClick={()=>setViewing(null)} style={{...btn,background:"#f1f5f9",color:"#64748b",padding:"7px 14px",fontSize:13,marginBottom:16}}>
+        ← Back
+      </button>
+      <div style={{background:"#fff",borderRadius:14,padding:20,border:"1px solid #e2e8f0"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+          <div style={{fontFamily:"'DM Serif Display',serif",fontSize:22,color:"#1e293b",flex:1,marginRight:12}}>
+            {viewing.title}
+          </div>
+          <button onClick={()=>handleDelete(viewing.id)} style={{
+            background:"#fef2f2",border:"1px solid #fecaca",color:"#ef4444",
+            borderRadius:8,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:600,
+            fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap",
+          }}>Delete</button>
+        </div>
+        <div style={{fontSize:11,color:"#94a3b8",marginBottom:16}}>{formatDate(viewing.createdAt)}</div>
+        <div style={{fontSize:14,color:"#334155",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{viewing.body||<span style={{color:"#cbd5e1"}}>No content.</span>}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {showForm ? (
+        <div style={{background:"#fff",borderRadius:14,padding:20,border:"1px solid #e2e8f0",marginBottom:20}}>
+          <h3 style={{margin:"0 0 16px",fontSize:16,color:"#1e293b"}}>New Note</h3>
+          <input value={title} onChange={e=>setTitle(e.target.value)}
+            placeholder="Title..." style={{...inp}} autoFocus />
+          <textarea value={body} onChange={e=>setBody(e.target.value)}
+            placeholder="Write your note here..."
+            rows={6} style={{...inp,resize:"vertical",lineHeight:1.6}} />
+          <div style={{display:"flex",gap:10,marginTop:8}}>
+            <button onClick={()=>{setShowForm(false);setTitle("");setBody("");}}
+              style={{...btn,background:"#f1f5f9",color:"#64748b",flex:1}}>Cancel</button>
+            <button onClick={handleAdd}
+              style={{...btn,background:"#6366f1",color:"#fff",flex:2}}>Save Note</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={()=>setShowForm(true)} style={{
+          ...btn,background:"#6366f1",color:"#fff",width:"100%",marginBottom:20,padding:"11px 0",
+        }}>+ New Note</button>
+      )}
+
+      {notes.length===0&&!showForm&&(
+        <div style={{textAlign:"center",color:"#94a3b8",padding:"40px 0",fontSize:14}}>
+          No notes yet. Tap "+ New Note" to create one.
+        </div>
+      )}
+
+      {notes.map(note=>(
+        <div key={note.id} onClick={()=>setViewing(note)} style={{
+          background:"#fff",borderRadius:12,padding:"14px 16px",border:"1px solid #e2e8f0",
+          marginBottom:10,cursor:"pointer",transition:"box-shadow 0.15s",
+        }}
+          onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 16px #0001"}
+          onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}
+        >
+          <div style={{fontSize:15,fontWeight:600,color:"#1e293b",marginBottom:4}}>{note.title}</div>
+          <div style={{fontSize:12,color:"#94a3b8",marginBottom:6}}>{formatDate(note.createdAt)}</div>
+          {note.body&&(
+            <div style={{fontSize:13,color:"#64748b",
+              overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,
+              WebkitBoxOrient:"vertical",lineHeight:1.5}}>
+              {note.body}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main TodoApp (shown after login) ────────────────────────
 function TodoApp({ user }) {
   const [tab,setTab] = useState("today");
@@ -475,7 +590,7 @@ useEffect(()=>{
             </div>
           </div>
           <div style={{display:"flex",borderBottom:"2px solid #f1f5f9",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-            {["today","weekly","monthly","yearly","history"].map(t=>(
+            {["today","weekly","monthly","yearly","history","notes"].map(t=>(
               <button key={t} onClick={()=>setTab(t)} style={{
                 background:"none",border:"none",cursor:"pointer",padding:"8px 14px",
                 fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap",
@@ -518,21 +633,27 @@ useEffect(()=>{
           </div>
         )}
 
-        {/* WEEKLY */}
         {tab==="weekly"&&(
-          <div>
-            <p style={{fontSize:13,color:"#94a3b8",marginTop:0}}>Appears automatically on the chosen day.</p>
-            {DAYS.map(day=>(
-              <div key={day} style={{marginBottom:18}}>
-                <div style={{fontSize:13,fontWeight:700,color:"#6366f1",marginBottom:7,textTransform:"uppercase",letterSpacing:1}}>{day}</div>
-                {(weekly[day]||[]).length===0
-                  ?<div style={{fontSize:13,color:"#cbd5e1",paddingLeft:4}}>No tasks</div>
-                  :(weekly[day]||[]).map(t=><ListItem key={t.id} t={t} scope="weekly" listKey={day}/>)
-                }
-              </div>
-            ))}
-          </div>
-        )}
+  <div>
+    <div style={{marginBottom:24}}>
+      <div style={{fontSize:13,fontWeight:700,color:"#f59e0b",marginBottom:7,textTransform:"uppercase",letterSpacing:1}}>🔁 Recurring (every day)</div>
+      {recurring.length===0
+        ?<div style={{fontSize:13,color:"#cbd5e1",paddingLeft:4}}>No recurring tasks</div>
+        :recurring.map(t=><ListItem key={t.id} t={t} scope="recurring" listKey={null}/>)
+      }
+    </div>
+    <p style={{fontSize:13,color:"#94a3b8",marginTop:0}}>Appears automatically on the chosen day.</p>
+    {DAYS.map(day=>(
+      <div key={day} style={{marginBottom:18}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#6366f1",marginBottom:7,textTransform:"uppercase",letterSpacing:1}}>{day}</div>
+        {(weekly[day]||[]).length===0
+          ?<div style={{fontSize:13,color:"#cbd5e1",paddingLeft:4}}>No tasks</div>
+          :(weekly[day]||[]).map(t=><ListItem key={t.id} t={t} scope="weekly" listKey={day}/>)
+        }
+      </div>
+    ))}
+  </div>
+)}
 
         {/* MONTHLY */}
         {tab==="monthly"&&(
@@ -581,6 +702,10 @@ useEffect(()=>{
         )}
 
         {tab==="history"&&<CalendarHistory history={history}/>}
+
+{tab==="notes"&&(
+  <NotesTab uid={user.uid} />
+)}
       </div>
 
       {showModal&&<AddTaskModal onClose={()=>setShowModal(false)} onAdd={handleAdd}/>}
