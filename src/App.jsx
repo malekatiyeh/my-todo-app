@@ -341,17 +341,19 @@ function NotesTab({ uid }) {
     })();
   },[uid]);
 
-  async function saveNotes(updated) {
-    setNotes(updated);
-    await saveUserData(uid, { notes: updated });
-  }
+  function saveNotes(updated) {
+  setNotes(updated);
+  saveUserData(uid, { notes: updated });
+}
 
   function handleAdd() {
-    if (!title.trim()) return;
-    const note = { id:uid(), title:title.trim(), body:body.trim(), createdAt: new Date().toISOString() };
-    saveNotes([note, ...notes]);
-    setTitle(""); setBody(""); setShowForm(false);
-  }
+  if (!title.trim()) return;
+  const note = { id:uid(), title:title.trim(), body:body.trim(), createdAt: new Date().toISOString() };
+  const updated = [note, ...notes];
+  setNotes(updated);
+  saveUserData(uid, { notes: updated });
+  setTitle(""); setBody(""); setShowForm(false);
+}
 
   function handleDelete(id) {
     saveNotes(notes.filter(n=>n.id!==id));
